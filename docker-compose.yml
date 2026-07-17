@@ -1,0 +1,20 @@
+services:
+  vpn_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vpn_bot
+    restart: always
+    network_mode: "host"
+    # Ограничение оперативной памяти до 250 МБ (убираем , если не надо)
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+          
+    # Монтируем ПАПКУ для базы данных
+    volumes:
+      - ./data:/app/data
+      
+    env_file:
+      - .env

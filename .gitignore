@@ -1,0 +1,4 @@
+data/
+bot_database.db/
+.env
+test_connection.py
