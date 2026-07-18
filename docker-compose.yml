@@ -6,7 +6,7 @@ services:
     container_name: vpn_bot
     restart: always
     network_mode: "host"
-    # Ограничение оперативной памяти до 250 МБ (убираем , если не надо)
+    # Ограничение оперативной памяти до 250 МБ
     deploy:
       resources:
         limits:
