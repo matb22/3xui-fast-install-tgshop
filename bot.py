@@ -335,9 +335,13 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("check_"))
 async def check_yoomoney_payment(callback: types.CallbackQuery):
-    label = callback.data.split("_")[1]
+    # Разделяем максимум на 1 часть по первому подчеркиванию, чтобы отсечь слово "check"
+    label = callback.data.split("_", 1)[1]    
+    # ВАЖНО: Это покажет в логах, нажата ли кнопка в принципе!
+    logger.info(f"=== НАЖАТА КНОПКА ПРОВЕРКИ ДЛЯ LABEL: {label} ===")
 
     if label not in pending_payments:
+        logger.warning(f"⚠️ Сессия платежа {label} не найдена в pending_payments (возможно бот перезапускался)")
         await callback.answer("❌ Срок действия сессии платежа истек.", show_alert=True)
         return
 
@@ -348,17 +352,24 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
 
     try:
         client = Client(YOOMONEY_TOKEN)
-        history = client.operation_history(label=label)
+        
+        # Вместо фильтра библиотеки (который часто сбоит), берем последние 30 операций
+        logger.info("Запрашиваю историю операций из ЮMoney...")
+        history = client.operation_history(records=30)
+        logger.info(f"Получено операций от API: {len(history.operations) if history.operations else 0}")
 
         success = False
-        for operation in history.operations:
-            if operation.status == "success":
-                success = True
-                break
+        if history.operations:
+            for operation in history.operations:
+                # Логируем для отладки, что вообще видит бот в истории
+                logger.info(f"Проверяю операцию: статус={operation.status}, label в истории={operation.label}")
+                
+                if operation.label == label and operation.status == "success":
+                    success = True
+                    break
 
         if success:
             del pending_payments[label]
-
             days = 30 if tariff == "1m" else 90
             await grant_subscription(user_id, username, days=days)
 
@@ -372,9 +383,9 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
             await callback.answer("⏳ Перевод еще не поступил. Попробуйте проверить через минуту.", show_alert=True)
 
     except Exception as e:
-        logger.error(f"Ошибка проверки платежа ЮMoney: {e}")
+        # Теперь любая техническая проблема с ЮMoney (токен/права) запишется с пометкой CRITICAL
+        logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА API ЮMONEY: {e}", exc_info=True)
         await callback.answer("⚠️ Ошибка платежной системы. Попробуйте еще раз.", show_alert=True)
-
 # --- ОПЛАТА STARS ---
 
 @dp.callback_query(F.data.startswith("pay_stars_"))
