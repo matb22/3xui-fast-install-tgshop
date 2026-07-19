@@ -43,6 +43,14 @@ xui = XuiAPI(url=XUI_URL)
 
 pending_payments = {}
 
+# --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЭКРАНИРОВАНИЯ MARKDOWNV2 ---
+def escape_md(text: str) -> str:
+    """Экранирует спецсимволы для MarkdownV2"""
+    special_chars = r'_*[]()~`>#+-=|{}.!'
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 # --- СОСТОЯНИЯ ДЛЯ ВВОДА ПРОМОКОДА ---
 class PromoStates(StatesGroup):
     waiting_for_promo = State()
@@ -170,27 +178,31 @@ def get_instructions_keyboard():
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
+    text = escape_md(
+        "👋 **Добро пожаловать в корпорацию FufelshmertsVPN\!**\n\n"
+        "Мой создатель разработал лучший «Инатор» для свободного интернета без блокировок\. "
+        "Управляйте подпиской с помощью кнопок ниже:"
+    )
     await message.answer(
-        "👋 **Добро пожаловать в корпорацию FufelshmertsVPN!**\n\n"
-        "Мой создатель разработал лучший «Инатор» для свободного интернета без блокировок. "
-        "Управляйте подпиской с помощью кнопок ниже:",
+        text,
         reply_markup=get_main_inline_keyboard(),
         parse_mode="MarkdownV2"
     )
 
 @dp.callback_query(F.data == "to_main")
 async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.clear() # Сбрасываем стейты, если юзер передумал вводить промокод
+    await state.clear()
+    text = escape_md("👋 **FufelshmertsVPN — Главное меню:**")
     if callback.message.photo:
         await callback.message.delete()
         await callback.message.answer(
-            "👋 **FufelshmertsVPN — Главное меню:**",
+            text,
             reply_markup=get_main_inline_keyboard(),
             parse_mode="MarkdownV2"
         )
     else:
         await callback.message.edit_text(
-            "👋 **FufelshmertsVPN — Главное меню:**",
+            text,
             reply_markup=get_main_inline_keyboard(),
             parse_mode="MarkdownV2"
         )
@@ -200,10 +212,10 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
 async def show_tariffs_inline(callback: types.CallbackQuery):
     _, _, has_discount = get_user_prices(callback.from_user.id)
     
-    text = "⚡️ **Выберите тарифный план:**\n\n"
+    text = escape_md("⚡️ **Выберите тарифный план:**\n\n")
     if has_discount:
-        text += "🎉 **У вас активирована скидка по промокоду!** Цены снижены.\n\n"
-    text += "Все тарифы включают высокую скорость, поддержку Discord (режим TUN) и безлимитный трафик."
+        text += escape_md("🎉 **У вас активирована скидка по промокоду\!** Цены снижены\.\n\n")
+    text += escape_md("Все тарифы включают высокую скорость, поддержку Discord \(режим TUN\) и безлимитный трафик\.")
 
     if callback.message.photo:
         await callback.message.delete()
@@ -215,10 +227,13 @@ async def show_tariffs_inline(callback: types.CallbackQuery):
 # ХЕНДЛЕР НАЖАТИЯ: ВВЕСТИ ПРОМОКОД
 @dp.callback_query(F.data == "enter_promo")
 async def ask_for_promocode(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(
+    text = escape_md(
         "🎟 **Ввод промокода**\n\n"
         "Пришлите мне промокод ответным текстовым сообщением:\n"
-        "(Например: `YOUTUBER1`)",
+        "\(Например: `YOUTUBER1`\)"
+    )
+    await callback.message.edit_text(
+        text,
         reply_markup=get_back_to_main_keyboard(),
         parse_mode="MarkdownV2"
     )
@@ -241,12 +256,15 @@ async def process_promo_input(message: types.Message, state: FSMContext):
         # Получаем обновленные цены для вывода
         p1, p3, _ = get_user_prices(message.from_user.id)
         
-        await message.answer(
-            f"✅ **Промокод `{user_promo}` успешно применен!**\n\n"
+        text = escape_md(
+            f"✅ **Промокод `{user_promo}` успешно применен\!**\n\n"
             f"Ваши новые цены:\n"
-            f"• 1 месяц — **{p1}₽** (вместо {os.getenv('PRICE_1M', 149)}₽)\n"
-            f"• 3 месяца — **{p3}₽** (вместо {os.getenv('PRICE_3M', 420)}₽)\n\n"
-            f"Откройте меню покупки, чтобы оформить подписку со скидкой!",
+            f"• 1 месяц — **{p1}₽** \(вместо {os.getenv('PRICE_1M', 149)}₽\)\n"
+            f"• 3 месяца — **{p3}₽** \(вместо {os.getenv('PRICE_3M', 420)}₽\)\n\n"
+            f"Откройте меню покупки, чтобы оформить подписку со скидкой\!"
+        )
+        await message.answer(
+            text,
             reply_markup=get_main_inline_keyboard(),
             parse_mode="MarkdownV2"
         )
@@ -270,16 +288,19 @@ async def choose_payment_method(callback: types.CallbackQuery):
 
     if tariff == "test":
         user_record = database.get_user(user_id)
-        if user_record and user_record[0]: # Если есть UUID, значит тест или подписка уже брались
+        if user_record and user_record[0]:
             await callback.answer("❌ Вы уже активировали тестовый период или подписку ранее!", show_alert=True)
             return
 
         await callback.message.edit_text("⏳ Минутку, создаю ваш профиль в Инаторе...")
         await grant_subscription(user_id, username, days=2)
 
+        text = escape_md(
+            "🎉 **Тестовый период на 2 дня успешно активирован\!**\n\n"
+            "Ваш персональный ключ и QR\-код уже сгенерированы\. Зайдите в **«👤 Мой кабинет»**\!"
+        )
         await callback.message.answer(
-            "🎉 **Тестовый период на 2 дня успешно активирован!**\n\n"
-            "Ваш персональный ключ и QR-код уже сгенерированы. Зайдите в **«👤 Мой кабинет»**!",
+            text,
             reply_markup=get_main_inline_keyboard(),
             parse_mode="MarkdownV2"
         )
@@ -292,10 +313,13 @@ async def choose_payment_method(callback: types.CallbackQuery):
     price = p1 if tariff == "1m" else p3
     tariff_text = "1 месяц" if tariff == "1m" else "3 месяца"
 
-    await callback.message.edit_text(
+    text = escape_md(
         f"🛒 Вы выбрали тариф: **{tariff_text}**\n"
         f"💵 К оплате: **{price}₽**\n\n"
-        f"Выберите удобный способ оплаты:",
+        f"Выберите удобный способ оплаты:"
+    )
+    await callback.message.edit_text(
+        text,
         reply_markup=get_payment_methods(tariff, price),
         parse_mode="MarkdownV2"
     )
@@ -321,7 +345,7 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
     quickpay = Quickpay(
         receiver=YOOMONEY_RECEIVER,
         quickpay_form="shop",
-        targets=f"FufelshmertsVPN: {tariff}{promo_text}",  # Добавили промокод в назначение платежа
+        targets=f"FufelshmertsVPN: {tariff}{promo_text}",
         paymentType="SB",
         sum=int(price),
         label=label
@@ -333,11 +357,14 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
         "price": price
     }
 
-    await callback.message.edit_text(
+    text = escape_md(
         f"💳 **Оплата через ЮMoney**\n\n"
         f"Тариф: **{'1 месяц' if tariff == '1m' else '3 месяца'}** | К оплате: **{price}₽**\n\n"
-        f"Нажмите кнопку ниже для перехода к оплате. "
-        f"После проведения транзакции обязательно вернитесь сюда и нажмите **«✅ Я оплатил»**.",
+        f"Нажмите кнопку ниже для перехода к оплате\. "
+        f"После проведения транзакции обязательно вернитесь сюда и нажмите **«✅ Я оплатил»**\."
+    )
+    await callback.message.edit_text(
+        text,
         reply_markup=get_yoomoney_keyboard(quickpay.base_url, label),
         parse_mode="MarkdownV2"
     )
@@ -346,9 +373,7 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
     
 @dp.callback_query(F.data.startswith("check_"))
 async def check_yoomoney_payment(callback: types.CallbackQuery):
-    # Разделяем максимум на 1 часть по первому подчеркиванию, чтобы отсечь слово "check"
     label = callback.data.split("_", 1)[1]    
-    # ВАЖНО: Это покажет в логах, нажата ли кнопка в принципе!
     logger.info(f"=== НАЖАТА КНОПКА ПРОВЕРКИ ДЛЯ LABEL: {label} ===")
 
     if label not in pending_payments:
@@ -364,7 +389,6 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
     try:
         client = Client(YOOMONEY_TOKEN)
         
-        # Вместо фильтра библиотеки (который часто сбоит), берем последние 30 операций
         logger.info("Запрашиваю историю операций из ЮMoney...")
         history = client.operation_history(records=30)
         logger.info(f"Получено операций от API: {len(history.operations) if history.operations else 0}")
@@ -372,7 +396,6 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
         success = False
         if history.operations:
             for operation in history.operations:
-                # Логируем для отладки, что вообще видит бот в истории
                 logger.info(f"Проверяю операцию: статус={operation.status}, label в истории={operation.label}")
                 
                 if operation.label == label and operation.status == "success":
@@ -384,9 +407,12 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
             days = 30 if tariff == "1m" else 90
             await grant_subscription(user_id, username, days=days)
 
+            text = escape_md(
+                "🎉 **Оплата успешно получена\!**\n\n"
+                "Ваша подписка на VPN успешно активирована\! Перейдите в кабинет, чтобы забрать настройки\."
+            )
             await callback.message.edit_text(
-                "🎉 **Оплата успешно получена!**\n\n"
-                "Ваша подписка на VPN успешно активирована! Перейдите в кабинет, чтобы забрать настройки.",
+                text,
                 reply_markup=get_main_inline_keyboard(),
                 parse_mode="MarkdownV2"
             )
@@ -394,9 +420,9 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
             await callback.answer("⏳ Перевод еще не поступил. Попробуйте проверить через минуту.", show_alert=True)
 
     except Exception as e:
-        # Теперь любая техническая проблема с ЮMoney (токен/права) запишется с пометкой CRITICAL
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА API ЮMONEY: {e}", exc_info=True)
         await callback.answer("⚠️ Ошибка платежной системы. Попробуйте еще раз.", show_alert=True)
+
 # --- ОПЛАТА STARS ---
 
 @dp.callback_query(F.data.startswith("pay_stars_"))
@@ -432,9 +458,12 @@ async def successful_payment(message: types.Message):
     days = 30 if tariff == "1m" else 90
     await grant_subscription(user_id, username, days=days)
 
+    text = escape_md(
+        "🎉 **Оплата звёздами прошла успешно\!**\n\n"
+        "Ваш доступ активирован\. Откройте **«👤 Мой кабинет»** ниже, чтобы забрать настройки\."
+    )
     await message.answer(
-        "🎉 **Оплата звёздами прошла успешно!**\n\n"
-        "Ваш доступ активирован. Откройте **«👤 Мой кабинет»** ниже, чтобы забрать настройки.",
+        text,
         reply_markup=get_main_inline_keyboard(),
         parse_mode="MarkdownV2"
     )
@@ -446,12 +475,11 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user_record = database.get_user(user_id)
     
-    # Защита от краша: проверяем, что запись существует и содержит данные о UUID панели
     if not user_record or user_record[0] is None:
-        text = (
+        text = escape_md(
             "👤 **Личный кабинет**\n\n"
-            "У вас пока нет активной подписки.\n\n"
-            "Нажмите кнопку **«🛍 Купить VPN»**, чтобы активировать бесплатный тест на 2 дня или оформить тариф!"
+            "У вас пока нет активной подписки\.\n\n"
+            "Нажмите кнопку **«🛍 Купить VPN»**, чтобы активировать бесплатный тест на 2 дня или оформить тариф\!"
         )
         builder = InlineKeyboardBuilder()
         builder.button(text="🛍 Купить VPN", callback_data="menu_buy")
@@ -471,9 +499,12 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="to_main")
         builder.adjust(1)
 
-        await callback.message.edit_text(
+        text = escape_md(
             "👤 **Личный кабинет**\n\n"
-            "❌ Срок действия вашей подписки закончился. Пожалуйста, продлите её.",
+            "❌ Срок действия вашей подписки закончился\. Пожалуйста, продлите её\."
+        )
+        await callback.message.edit_text(
+            text,
             reply_markup=builder.as_markup(),
             parse_mode="MarkdownV2"
         )
@@ -505,7 +536,7 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
         photo=qr_file,
         caption=caption_text,
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="MarkdownV2" # Изменил на HTML для корректного моноширинного тега <code>
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -513,9 +544,9 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "menu_instructions")
 async def show_instructions_menu(callback: types.CallbackQuery):
-    text = (
+    text = escape_md(
         "ℹ️ **База знаний FufelshmertsVPN**\n\n"
-        "Мы работаем на самом быстром и надежном протоколе **Trojan**.\n"
+        "Мы работаем на самом быстром и надежном протоколе **Trojan**\.\n"
         "Выберите устройство для получения подробной пошаговой инструкции:"
     )
     if callback.message.photo:
@@ -528,10 +559,10 @@ async def show_instructions_menu(callback: types.CallbackQuery):
 # --- НАЖАТИЕ ПОДДЕРЖКИ ---
 @dp.callback_query(F.data == "menu_support")
 async def show_support_menu(callback: types.CallbackQuery):
-    text = (
-        "🛠️ **Тех. поддержка FufelshmertsVPN**\n\n"
-        "Что-бы обратить в тех. поддержку, напиши нам на почту - **patio-thigh-water@duck.com**\n"
-        "Среднее время ответа **~12 часов**. Заранее спасибо за ожидание"
+    text = escape_md(
+        "🛠️ **Тех\. поддержка FufelshmertsVPN**\n\n"
+        "Что\-бы обратить в тех\. поддержку, напиши нам на почту \- **patio\-thigh\-water@duck\.com**\n"
+        "Среднее время ответа **~12 часов**\. Заранее спасибо за ожидание"
     )
     
     if callback.message.photo:
@@ -551,100 +582,100 @@ async def process_instruction_inline(callback: types.CallbackQuery):
     img_pc = "https://images.unsplash.com/photo-1547082299-de196ea013d6?w=600"
 
     if platform == "ios":
-        text = (
-            f"🍏 **Инструкция для Телефона (Hiddify, iOS)**\n\n"
-            f"1. Скачайте Hiddify (можно найти в App Store)\n"
-            f"2. Установите Hiddify следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"🍏 **Инструкция для Телефона (Happ, iOS)**\n\n"
-            f"1. Скачайте Happ (можно найти в App Store)\n"
-            f"2. Установите Happ следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"🍏 **Инструкция для Телефона (v2rayTun, iOS)**\n\n"
-            f"1. Скачайте v2rayTun (можно найти в App Store)\n"
-            f"2. Установите v2rayTun следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !"
+        text = escape_md(
+            f"🍏 **Инструкция для Телефона \(Hiddify, iOS\)**\n\n"
+            "1\. Скачайте Hiddify \(можно найти в App Store\)\n"
+            "2\. Установите Hiddify следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"🍏 **Инструкция для Телефона \(Happ, iOS\)**\n\n"
+            "1\. Скачайте Happ \(можно найти в App Store\)\n"
+            "2\. Установите Happ следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"🍏 **Инструкция для Телефона \(v2rayTun, iOS\)**\n\n"
+            "1\. Скачайте v2rayTun \(можно найти в App Store\)\n"
+            "2\. Установите v2rayTun следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!"
         )
         photo = img_ios
     elif platform == "android":
-        text = (
-            f"🤖 **Инструкция для Телефона (Hiddify, Android)**\n\n"
-            f"1. Скачайте Hiddify (можно найти в Play Market)\n"
-            f"2. Установите Hiddify следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"🤖 **Инструкция для Телефона (Happ, Android)**\n\n"
-            f"1. Скачайте Happ (можно найти в Play Market)\n"
-            f"2. Установите Happ следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"🤖 **Инструкция для Телефона (v2rayTun, Android)**\n\n"
-            f"1. Скачайте v2rayTun (можно найти в Play Market)\n"
-            f"2. Установите v2rayTun следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !"
+        text = escape_md(
+            f"🤖 **Инструкция для Телефона \(Hiddify, Android\)**\n\n"
+            "1\. Скачайте Hiddify \(можно найти в Play Market\)\n"
+            "2\. Установите Hiddify следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"🤖 **Инструкция для Телефона \(Happ, Android\)**\n\n"
+            "1\. Скачайте Happ \(можно найти в Play Market\)\n"
+            "2\. Установите Happ следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"🤖 **Инструкция для Телефона \(v2rayTun, Android\)**\n\n"
+            "1\. Скачайте v2rayTun \(можно найти в Play Market\)\n"
+            "2\. Установите v2rayTun следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!"
         )
         photo = img_android
     elif platform == "windows":
-        text = (
-            f"💻 **Инструкция для ПК (Hiddify, Windows)**\n\n"
-            f"1. Скачайте Hiddify:\n"
-            f"https://github.com/hiddify/hiddify-app/releases/download/v4.1.1/Hiddify-Windows-Setup-x64.exe\n"
-            f"2. Установите Hiddify следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"💻 **Инструкция для ПК (Happ, Windows)**\n\n"
-            f"1. Скачайте Happ:\n"
-            f"https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/setup-Happ.x64.exe\n"
-            f"2. Установите Happ следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
-            f"💻 **Инструкция для ПК (v2rayTun, Windows)**\n\n"
-            f"1. Скачайте v2rayTun:\n"
-            f"https://github.com/mdf45/v2raytun/releases/download/v3.8.12/v2RayTun_Setup.exe\n"
-            f"2. Установите v2rayTun следуя инструкциям установщика\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !\n"
+        text = escape_md(
+            f"💻 **Инструкция для ПК \(Hiddify, Windows\)**\n\n"
+            "1\. Скачайте Hiddify:\n"
+            "https://github\.com/hiddify/hiddify-app/releases/download/v4\.1\.1/Hiddify\-Windows\-Setup\-x64\.exe\n"
+            "2\. Установите Hiddify следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"💻 **Инструкция для ПК \(Happ, Windows\)**\n\n"
+            "1\. Скачайте Happ:\n"
+            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/setup\-Happ\.x64\.exe\n"
+            "2\. Установите Happ следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!\n"
+            f"💻 **Инструкция для ПК \(v2rayTun, Windows\)**\n\n"
+            "1\. Скачайте v2rayTun:\n"
+            "https://github\.com/mdf45/v2raytun/releases/download/v3\.8\.12/v2RayTun\_Setup\.exe\n"
+            "2\. Установите v2rayTun следуя инструкциям установщика\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!"
         )
         photo = img_pc
     else:
-        text = (
-            f"🐧 **Инструкция для ПК (Happ, Linux)**\n\n"
-            f"1. Скачайте Happ\n"
-            f"Debian/Ubuntu/Mint:\n"
-            f"https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.deb\n"
-            f"Fedora/AlmaLinux:\n"
-            f"https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.rpm\n"
-            f"2. Установите Happ под ваш дистрибутив\n"
-            f"Debian/Ubuntu/Mint:\n"
-            f"`sudo apt install /полный/путь/к/файлу/имя_пакета.deb`\n"
-            f"Fedora/AlmaLinux:\n"
-            f"`sudo dnf install /полный/путь/к/файлу/имя_пакета.rpm`\n"
-            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
-            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
-            f"5. Запустите VPN\n\n"
-            f"Готово !"
+        text = escape_md(
+            f"🐧 **Инструкция для ПК \(Happ, Linux\)**\n\n"
+            "1\. Скачайте Happ\n"
+            "Debian/Ubuntu/Mint:\n"
+            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/Happ\.linux\.x64\.deb\n"
+            "Fedora/AlmaLinux:\n"
+            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/Happ\.linux\.x64\.rpm\n"
+            "2\. Установите Happ под ваш дистрибутив\n"
+            "Debian/Ubuntu/Mint:\n"
+            "`sudo apt install /полный/путь/к/файлу/имя_пакета\.deb`\n"
+            "Fedora/AlmaLinux:\n"
+            "`sudo dnf install /полный/путь/к/файлу/имя_пакета\.rpm`\n"
+            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
+            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
+            "5\. Запустите VPN\n\n"
+            "Готово \!"
         )
         photo = img_pc
 
