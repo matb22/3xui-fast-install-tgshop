@@ -545,11 +545,15 @@ async def process_instruction_inline(callback: types.CallbackQuery):
             f"1. Скачайте Happ\n"
             f"Debian/Ubuntu/Mint - https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.deb.\n"
             f"Fedora/AlmaLinux - https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.rpm\n"
-            f""
-            f""
-            f""
-            f""
-            f""
+            f"2. Установите Happ под ваш дистрибутив\n"
+            f"Debian/Ubuntu/Mint:\n"
+            f"sudo apt install /полный/путь/к/файлу/имя_пакета.deb\n"
+            f"Fedora/AlmaLinux:\n"
+            f"sudo dnf install /полный/путь/к/файлу/имя_пакета.rpm\n"
+            f"3. Скопируйте вашу ссылку (можно получить в личном кабинете)\n"
+            f"4. Нажмите на кнопку '+', что-бы добавить ссылку\n"
+            f"5. Запустите VPN\n\n"
+            f"Готово !"
         )
         photo = img_pc
 
