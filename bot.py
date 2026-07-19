@@ -297,7 +297,7 @@ async def choose_payment_method(callback: types.CallbackQuery):
         f"💵 К оплате: **{price}₽**\n\n"
         f"Выберите удобный способ оплаты:",
         reply_markup=get_payment_methods(tariff, price),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
     await callback.answer()
 
@@ -330,7 +330,7 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
         f"Нажмите кнопку ниже для перехода к оплате. "
         f"После проведения транзакции обязательно вернитесь сюда и нажмите **«✅ Я оплатил»**.",
         reply_markup=get_yoomoney_keyboard(quickpay.base_url, label),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
     await callback.answer()
 
@@ -378,7 +378,7 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
                 "🎉 **Оплата успешно получена!**\n\n"
                 "Ваша подписка на VPN успешно активирована! Перейдите в кабинет, чтобы забрать настройки.",
                 reply_markup=get_main_inline_keyboard(),
-                parse_mode="Markdown"
+                parse_mode="MarkdownV2"
             )
         else:
             await callback.answer("⏳ Перевод еще не поступил. Попробуйте проверить через минуту.", show_alert=True)
@@ -426,7 +426,7 @@ async def successful_payment(message: types.Message):
         "🎉 **Оплата звёздами прошла успешно!**\n\n"
         "Ваш доступ активирован. Откройте **«👤 Мой кабинет»** ниже, чтобы забрать настройки.",
         reply_markup=get_main_inline_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
 
 # --- НАЖАТИЕ: «👤 Мой кабинет» ---
@@ -448,7 +448,7 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="to_main")
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="MarkdownV2")
         await callback.answer()
         return
 
@@ -465,7 +465,7 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
             "👤 **Личный кабинет**\n\n"
             "❌ Срок действия вашей подписки закончился. Пожалуйста, продлите её.",
             reply_markup=builder.as_markup(),
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
         await callback.answer()
         return
@@ -495,7 +495,7 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
         photo=qr_file,
         caption=caption_text,
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="HTML" # Изменил на HTML для корректного моноширинного тега <code>
+        parse_mode="MarkdownV2" # Изменил на HTML для корректного моноширинного тега <code>
     )
     await callback.answer()
 
