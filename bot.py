@@ -175,7 +175,7 @@ async def cmd_start(message: types.Message):
         "Мой создатель разработал лучший «Инатор» для свободного интернета без блокировок. "
         "Управляйте подпиской с помощью кнопок ниже:",
         reply_markup=get_main_inline_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
 
 @dp.callback_query(F.data == "to_main")
@@ -186,13 +186,13 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(
             "👋 **FufelshmertsVPN — Главное меню:**",
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
     else:
         await callback.message.edit_text(
             "👋 **FufelshmertsVPN — Главное меню:**",
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
     await callback.answer()
 
@@ -207,9 +207,9 @@ async def show_tariffs_inline(callback: types.CallbackQuery):
 
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="Markdown")
+        await callback.message.answer(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="MarkdownV2")
     else:
-        await callback.message.edit_text(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="MarkdownV2")
     await callback.answer()
 
 # ХЕНДЛЕР НАЖАТИЯ: ВВЕСТИ ПРОМОКОД
@@ -220,7 +220,7 @@ async def ask_for_promocode(callback: types.CallbackQuery, state: FSMContext):
         "Пришлите мне промокод ответным текстовым сообщением:\n"
         "(Например: `YOUTUBER1`)",
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
     await state.set_state(PromoStates.waiting_for_promo)
     await callback.answer()
@@ -248,7 +248,7 @@ async def process_promo_input(message: types.Message, state: FSMContext):
             f"• 3 месяца — **{p3}₽** (вместо {os.getenv('PRICE_3M', 420)}₽)\n\n"
             f"Откройте меню покупки, чтобы оформить подписку со скидкой!",
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
     else:
         builder = InlineKeyboardBuilder()
@@ -281,7 +281,7 @@ async def choose_payment_method(callback: types.CallbackQuery):
             "🎉 **Тестовый период на 2 дня успешно активирован!**\n\n"
             "Ваш персональный ключ и QR-код уже сгенерированы. Зайдите в **«👤 Мой кабинет»**!",
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="Markdown"
+            parse_mode="MarkdownV2"
         )
         await callback.message.delete()
         await callback.answer()
@@ -520,9 +520,9 @@ async def show_instructions_menu(callback: types.CallbackQuery):
     )
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_instructions_keyboard(), parse_mode="Markdown")
+        await callback.message.answer(text, reply_markup=get_instructions_keyboard(), parse_mode="MarkdownV2")
     else:
-        await callback.message.edit_text(text, reply_markup=get_instructions_keyboard(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=get_instructions_keyboard(), parse_mode="MarkdownV2")
     await callback.answer()
 
 # --- НАЖАТИЕ ПОДДЕРЖКИ ---
@@ -536,9 +536,9 @@ async def show_support_menu(callback: types.CallbackQuery):
     
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_back_to_main_keyboard(), parse_mode="Markdown")
+        await callback.message.answer(text, reply_markup=get_back_to_main_keyboard(), parse_mode="MarkdownV2")
     else:
-        await callback.message.edit_text(text, reply_markup=get_back_to_main_keyboard(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=get_back_to_main_keyboard(), parse_mode="MarkdownV2")
     
     await callback.answer()
 
@@ -653,7 +653,7 @@ async def process_instruction_inline(callback: types.CallbackQuery):
         photo=photo,
         caption=text,
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="MarkdownV2"
     )
     await callback.answer()
 
