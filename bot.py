@@ -565,8 +565,8 @@ async def show_support_menu(callback: types.CallbackQuery):
 async def process_instruction_inline(callback: types.CallbackQuery):
     platform = callback.data.split("_")[1]
 
-    img_ios = "https://images.unsplash.com/photo-1510519138101-570d1dca3d66?w=600"
-    img_android = "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600"
+    img_ios = "https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Flogos-world.net%2Fwp-content%2Fuploads%2F2023%2F06%2FiOS-Symbol.png&f=1&nofb=1&ipt=4caac7e60d1b6f700459d5833dba6efc5b410b66ea360fc0ace0eca2eef21fd0"
+    img_android = "https://www.vecteezy.com/vector-art/21515033-android-operating-system-logo-icon-symbol-with-name-green-design-software-phone-vector-illustration-with-black-background"
     img_pc = "https://images.unsplash.com/photo-1547082299-de196ea013d6?w=600"
 
     if platform == "ios":
