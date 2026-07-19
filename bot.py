@@ -156,11 +156,12 @@ def get_yoomoney_keyboard(pay_url, label):
 
 def get_instructions_keyboard():
     builder = InlineKeyboardBuilder()
-    builder.button(text="🍏 iPhone / iPad (iOS)", callback_data="inst_ios")
+    builder.button(text="🍏 iPhone / iPad / MacBook (iOS)", callback_data="inst_ios")
     builder.button(text="🤖 Android", callback_data="inst_android")
-    builder.button(text="💻 ПК (Windows/Mac)", callback_data="inst_pc")
+    builder.button(text="💻 ПК (Windows)", callback_data="inst_win")
+    builder.button(text="💻 ПК (Linux)", callback_data="ints_lin")
     builder.button(text="⬅️ Назад", callback_data="to_main")
-    builder.adjust(2, 1, 1)
+    builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
@@ -529,13 +530,26 @@ async def process_instruction_inline(callback: types.CallbackQuery):
             f"4. Нажмите круглую зеленую кнопку для запуска VPN. Разрешите создание VPN в системе! ⚡"
         )
         photo = img_android
-    else:
+    elif platform == "win":
         text = (
-            f"💻 **Инструкция для ПК (Windows / MacOS):**\n\n"
+            f"💻 **Инструкция для ПК (Windows):**\n\n"
             f"1. Скачайте десктопный клиент **Hiddify Next** с GitHub или официального сайта.\n"
             f"2. Скопируйте ссылку подписки в разделе **«👤 Мой кабинет»**.\n"
             f"3. В левой колонке приложения нажмите **«+ Новый профиль»** и импортируйте ссылку из буфера.\n"
             f"4. Нажмите большую кнопку запуска. Для работы Discord без лагов обязательно включите **«Режим TUN»** в настройках программы! ⚙️"
+        )
+        photo = img_pc
+    else:
+        text = (
+            f"💻 **Инструкция для ПК (Happ, Linux)**\n\n"
+            f"1. Скачайте Happ\n"
+            f"Debian/Ubuntu/Mint - https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.deb.\n"
+            f"Fedora/AlmaLinux - https://github.com/Happ-proxy/happ-desktop/releases/download/3.3.5/Happ.linux.x64.rpm\n"
+            f""
+            f""
+            f""
+            f""
+            f""
         )
         photo = img_pc
 
