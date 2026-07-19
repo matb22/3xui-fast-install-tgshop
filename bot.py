@@ -307,12 +307,21 @@ async def choose_payment_method(callback: types.CallbackQuery):
 async def process_yoomoney_payment(callback: types.CallbackQuery):
     _, _, tariff, price = callback.data.split("_")
     user_id = callback.from_user.id
+    
+    # Получаем данные пользователя из БД, чтобы проверить наличие промокода
+    user_record = database.get_user(user_id)
+    promo_text = ""
+    
+    # user_record[3] — это applied_promo в вашей структуре БД
+    if user_record and len(user_record) >= 4 and user_record[3]:
+        promo_text = f" (Промокод: {user_record[3]})"
+        
     label = f"{user_id}_{tariff}_{uuid.uuid4().hex[:6]}"
 
     quickpay = Quickpay(
         receiver=YOOMONEY_RECEIVER,
         quickpay_form="shop",
-        targets=f"FufelshmertsVPN: {tariff}",
+        targets=f"FufelshmertsVPN: {tariff}{promo_text}",  # Добавили промокод в назначение платежа
         paymentType="SB",
         sum=int(price),
         label=label
@@ -334,6 +343,7 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+    
 @dp.callback_query(F.data.startswith("check_"))
 async def check_yoomoney_payment(callback: types.CallbackQuery):
     # Разделяем максимум на 1 часть по первому подчеркиванию, чтобы отсечь слово "check"
