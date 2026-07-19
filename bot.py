@@ -11,6 +11,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.html import quote  # Для безопасной вставки пользовательских данных в HTML
 from dotenv import load_dotenv
 from yoomoney import Quickpay, Client
 import qrcode
@@ -42,14 +43,6 @@ dp = Dispatcher()
 xui = XuiAPI(url=XUI_URL)
 
 pending_payments = {}
-
-# --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЭКРАНИРОВАНИЯ MARKDOWNV2 ---
-def escape_md(text: str) -> str:
-    """Экранирует спецсимволы для MarkdownV2"""
-    special_chars = r'_*[]()~`>#+-=|{}.!'
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
 
 # --- СОСТОЯНИЯ ДЛЯ ВВОДА ПРОМОКОДА ---
 class PromoStates(StatesGroup):
@@ -87,14 +80,17 @@ async def grant_subscription(user_id: int, username: str, days: int) -> tuple[st
     added_ms = days * 24 * 60 * 60 * 1000
     user_record = database.get_user(user_id)
 
-    if user_record and user_record[0]: # Проверяем наличие uuid
+    # Безопасно проверяем запись
+    if user_record and len(user_record) >= 3 and user_record[0]: # Проверяем наличие uuid
         client_uuid, client_email, current_expiry = user_record[0], user_record[1], user_record[2]
         now_ms = int(time.time() * 1000)
         start_ms = max(current_expiry, now_ms)
         new_expiry = start_ms + added_ms
+        applied_promo = user_record[3] if len(user_record) >= 4 else "none"
     else:
         client_uuid = str(uuid.uuid4())
-        client_email = f"tg_{user_id}_{username or 'user'}_{user_record[3]}"
+        applied_promo = user_record[3] if (user_record and len(user_record) >= 4) else "none"
+        client_email = f"tg_{user_id}_{username or 'user'}_{applied_promo}"
         new_expiry = int(time.time() * 1000) + added_ms
 
     database.add_or_update_user(user_id, username, client_uuid, client_email, new_expiry)
@@ -140,7 +136,6 @@ def get_tariffs_keyboard(user_id: int):
         
     builder.button(text="⬅️ Назад", callback_data="to_main")
     
-    # Меняем разметку кнопок в зависимости от наличия кнопки промокода
     if not has_discount:
         builder.adjust(2, 1, 1, 1)
     else:
@@ -165,7 +160,7 @@ def get_yoomoney_keyboard(pay_url, label):
 
 def get_instructions_keyboard():
     builder = InlineKeyboardBuilder()
-    builder.button(text="🍏 iPhone / iPad / MacBook (iOS)", callback_data="inst_ios")
+    builder.button(text="🍏 iPhone / iPad (iOS)", callback_data="inst_ios")
     builder.button(text="🤖 Android", callback_data="inst_android")
     builder.button(text="💻 ПК (Windows)", callback_data="inst_windows")
     builder.button(text="💻 ПК (Linux)", callback_data="inst_linux")
@@ -178,33 +173,33 @@ def get_instructions_keyboard():
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    text = escape_md(
-        "👋 **Добро пожаловать в корпорацию FufelshmertsVPN\!**\n\n"
-        "Мой создатель разработал лучший «Инатор» для свободного интернета без блокировок\. "
+    text = (
+        "<b>👋 Добро пожаловать в корпорацию FufelshmertsVPN!</b>\n\n"
+        "Мой создатель разработал лучший «Инатор» для свободного интернета без блокировок. "
         "Управляйте подпиской с помощью кнопок ниже:"
     )
     await message.answer(
         text,
         reply_markup=get_main_inline_keyboard(),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
 
 @dp.callback_query(F.data == "to_main")
 async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    text = escape_md("👋 **FufelshmertsVPN — Главное меню:**")
+    text = "<b>👋 FufelshmertsVPN — Главное меню:</b>"
     if callback.message.photo:
         await callback.message.delete()
         await callback.message.answer(
             text,
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
     else:
         await callback.message.edit_text(
             text,
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
     await callback.answer()
 
@@ -212,61 +207,56 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
 async def show_tariffs_inline(callback: types.CallbackQuery):
     _, _, has_discount = get_user_prices(callback.from_user.id)
     
-    text = escape_md("⚡️ **Выберите тарифный план:**\n\n")
+    text = "<b>⚡️ Выберите тарифный план:</b>\n\n"
     if has_discount:
-        text += escape_md("🎉 **У вас активирована скидка по промокоду\!** Цены снижены\.\n\n")
-    text += escape_md("Все тарифы включают высокую скорость, поддержку Discord \(режим TUN\) и безлимитный трафик\.")
+        text += "🎉 <b>У вас активирована скидка по промокоду!</b> Цены снижены.\n\n"
+    text += "Все тарифы включают высокую скорость, поддержку Discord (режим TUN) и безлимитный трафик."
 
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="MarkdownV2")
+        await callback.message.answer(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="HTML")
     else:
-        await callback.message.edit_text(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="MarkdownV2")
+        await callback.message.edit_text(text, reply_markup=get_tariffs_keyboard(callback.from_user.id), parse_mode="HTML")
     await callback.answer()
 
-# ХЕНДЛЕР НАЖАТИЯ: ВВЕСТИ ПРОМОКОД
 @dp.callback_query(F.data == "enter_promo")
 async def ask_for_promocode(callback: types.CallbackQuery, state: FSMContext):
-    text = escape_md(
-        "🎟 **Ввод промокода**\n\n"
+    text = (
+        "🎟 <b>Ввод промокода</b>\n\n"
         "Пришлите мне промокод ответным текстовым сообщением:\n"
-        "\(Например: `YOUTUBER1`\)"
+        "(Например: <code>YOUTUBER1</code>)"
     )
     await callback.message.edit_text(
         text,
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
     await state.set_state(PromoStates.waiting_for_promo)
     await callback.answer()
 
-# ХЕНДЛЕР ПРИЕМА ТЕКСТА ПРОМОКОДА
 @dp.message(PromoStates.waiting_for_promo, F.text)
 async def process_promo_input(message: types.Message, state: FSMContext):
     user_promo = message.text.strip().upper()
     await state.clear()
     
-    # Читаем список кодов из .env
     env_promos = os.getenv("VALID_PROMOCODES", "")
     valid_promos = [p.strip().upper() for p in env_promos.split(",") if p.strip()]
     
     if user_promo in valid_promos:
         database.apply_promo_to_user(message.from_user.id, user_promo)
-        
-        # Получаем обновленные цены для вывода
         p1, p3, _ = get_user_prices(message.from_user.id)
         
-        text = escape_md(
-            f"✅ **Промокод `{user_promo}` успешно применен\!**\n\n"
+        text = (
+            f"✅ <b>Промокод <code>{quote(user_promo)}</code> успешно применен!</b>\n\n"
             f"Ваши новые цены:\n"
-            f"• 1 месяц — **{p1}₽** \(вместо {os.getenv('PRICE_1M', 149)}₽\)\n"
-            f"• 3 месяца — **{p3}₽** \(вместо {os.getenv('PRICE_3M', 420)}₽\)\n\n"
-            f"Откройте меню покупки, чтобы оформить подписку со скидкой\!"
+            f"• 1 месяц — <b>{p1}₽</b> (вместо {os.getenv('PRICE_1M', 149)}₽)\n"
+            f"• 3 месяца — <b>{p3}₽</b> (вместо {os.getenv('PRICE_3M', 420)}₽)\n\n"
+            f"Откройте меню покупки, чтобы оформить подписку со скидкой!"
         )
         await message.answer(
             text,
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
     else:
         builder = InlineKeyboardBuilder()
@@ -275,9 +265,10 @@ async def process_promo_input(message: types.Message, state: FSMContext):
         builder.adjust(1)
         
         await message.answer(
-            "❌ **Такого промокода не существует** или срок его действия истек.\n"
+            "❌ <b>Такого промокода не существует</b> или срок его действия истек.\n"
             "Проверьте правильность написания.",
-            reply_markup=builder.as_markup()
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
         )
 
 @dp.callback_query(F.data.startswith("buy_"))
@@ -295,33 +286,32 @@ async def choose_payment_method(callback: types.CallbackQuery):
         await callback.message.edit_text("⏳ Минутку, создаю ваш профиль в Инаторе...")
         await grant_subscription(user_id, username, days=2)
 
-        text = escape_md(
-            "🎉 **Тестовый период на 2 дня успешно активирован\!**\n\n"
-            "Ваш персональный ключ и QR\-код уже сгенерированы\. Зайдите в **«👤 Мой кабинет»**\!"
+        text = (
+            "🎉 <b>Тестовый период на 2 дня успешно активирован!</b>\n\n"
+            "Ваш персональный ключ и QR-код уже сгенерированы. Зайдите в <b>«👤 Мой кабинет»</b>!"
         )
         await callback.message.answer(
             text,
             reply_markup=get_main_inline_keyboard(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
         await callback.message.delete()
         await callback.answer()
         return
 
-    # Динамически вычисляем стоимость с учетом промокода
     p1, p3, _ = get_user_prices(user_id)
     price = p1 if tariff == "1m" else p3
     tariff_text = "1 месяц" if tariff == "1m" else "3 месяца"
 
-    text = escape_md(
-        f"🛒 Вы выбрали тариф: **{tariff_text}**\n"
-        f"💵 К оплате: **{price}₽**\n\n"
+    text = (
+        f"🛒 Вы выбрали тариф: <b>{tariff_text}</b>\n"
+        f"💵 К оплате: <b>{price}₽</b>\n\n"
         f"Выберите удобный способ оплаты:"
     )
     await callback.message.edit_text(
         text,
         reply_markup=get_payment_methods(tariff, price),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -332,11 +322,9 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
     _, _, tariff, price = callback.data.split("_")
     user_id = callback.from_user.id
     
-    # Получаем данные пользователя из БД, чтобы проверить наличие промокода
     user_record = database.get_user(user_id)
     promo_text = ""
     
-    # user_record[3] — это applied_promo в вашей структуре БД
     if user_record and len(user_record) >= 4 and user_record[3]:
         promo_text = f" (Промокод: {user_record[3]})"
         
@@ -357,16 +345,16 @@ async def process_yoomoney_payment(callback: types.CallbackQuery):
         "price": price
     }
 
-    text = escape_md(
-        f"💳 **Оплата через ЮMoney**\n\n"
-        f"Тариф: **{'1 месяц' if tariff == '1m' else '3 месяца'}** | К оплате: **{price}₽**\n\n"
-        f"Нажмите кнопку ниже для перехода к оплате\. "
-        f"После проведения транзакции обязательно вернитесь сюда и нажмите **«✅ Я оплатил»**\."
+    text = (
+        f"💳 <b>Оплата через ЮMoney</b>\n\n"
+        f"Тариф: <b>{'1 месяц' if tariff == '1m' else '3 месяца'}</b> | К оплате: <b>{price}₽</b>\n\n"
+        f"Нажмите кнопку ниже для перехода к оплате.\n"
+        f"После проведения транзакции обязательно вернитесь сюда и нажмите <b>«✅ Я оплатил»</b>."
     )
     await callback.message.edit_text(
         text,
         reply_markup=get_yoomoney_keyboard(quickpay.base_url, label),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -407,14 +395,14 @@ async def check_yoomoney_payment(callback: types.CallbackQuery):
             days = 30 if tariff == "1m" else 90
             await grant_subscription(user_id, username, days=days)
 
-            text = escape_md(
-                "🎉 **Оплата успешно получена\!**\n\n"
-                "Ваша подписка на VPN успешно активирована\! Перейдите в кабинет, чтобы забрать настройки\."
+            text = (
+                "🎉 <b>Оплата успешно получена!</b>\n\n"
+                "Ваша подписка на VPN успешно активирована! Перейдите в кабинет, чтобы забрать настройки."
             )
             await callback.message.edit_text(
                 text,
                 reply_markup=get_main_inline_keyboard(),
-                parse_mode="MarkdownV2"
+                parse_mode="HTML"
             )
         else:
             await callback.answer("⏳ Перевод еще не поступил. Попробуйте проверить через минуту.", show_alert=True)
@@ -436,9 +424,9 @@ async def process_stars_payment(callback: types.CallbackQuery):
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=f"Подписка FufelshmertsVPN ({tariff})",
-        description=f"Оплата подписки на VPN на {tariff} звёздами Telegram.",
+        description=f"Оплата подписки на VPN на {tariff} звездами Telegram",
         payload=f"stars_{tariff}_{callback.from_user.id}",
-        provider_token="",
+        provider_token="",  # Для Telegram Stars поле обязательно должно быть пустой строкой
         currency="XTR",
         prices=prices
     )
@@ -458,14 +446,14 @@ async def successful_payment(message: types.Message):
     days = 30 if tariff == "1m" else 90
     await grant_subscription(user_id, username, days=days)
 
-    text = escape_md(
-        "🎉 **Оплата звёздами прошла успешно\!**\n\n"
-        "Ваш доступ активирован\. Откройте **«👤 Мой кабинет»** ниже, чтобы забрать настройки\."
+    text = (
+        "🎉 <b>Оплата звёздами прошла успешно!</b>\n\n"
+        "Ваш доступ активирован. Откройте <b>«👤 Мой кабинет»</b> ниже, чтобы забрать настройки."
     )
     await message.answer(
         text,
         reply_markup=get_main_inline_keyboard(),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
 
 # --- НАЖАТИЕ: «👤 Мой кабинет» ---
@@ -476,17 +464,17 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
     user_record = database.get_user(user_id)
     
     if not user_record or user_record[0] is None:
-        text = escape_md(
-            "👤 **Личный кабинет**\n\n"
-            "У вас пока нет активной подписки\.\n\n"
-            "Нажмите кнопку **«🛍 Купить VPN»**, чтобы активировать бесплатный тест на 2 дня или оформить тариф\!"
+        text = (
+            "👤 <b>Личный кабинет</b>\n\n"
+            "У вас пока нет активной подписки.\n\n"
+            "Нажмите кнопку <b>«🛍 Купить VPN»</b>, чтобы активировать бесплатный тест на 2 дня или оформить тариф!"
         )
         builder = InlineKeyboardBuilder()
         builder.button(text="🛍 Купить VPN", callback_data="menu_buy")
         builder.button(text="⬅️ Назад", callback_data="to_main")
         builder.adjust(1)
 
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="MarkdownV2")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
         await callback.answer()
         return
 
@@ -499,14 +487,14 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
         builder.button(text="⬅️ Назад", callback_data="to_main")
         builder.adjust(1)
 
-        text = escape_md(
-            "👤 **Личный кабинет**\n\n"
-            "❌ Срок действия вашей подписки закончился\. Пожалуйста, продлите её\."
+        text = (
+            "👤 <b>Личный кабинет</b>\n\n"
+            "❌ Срок действия вашей подписки закончился. Пожалуйста, продлите её."
         )
         await callback.message.edit_text(
             text,
             reply_markup=builder.as_markup(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -520,15 +508,15 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
     qr_file = generate_qr_code(sub_link)
 
     caption_text = (
-        f"👤 **Ваш Личный Кабинет**\n\n"
-        f"• **Статус подписки:** Активен ✅\n"
-        f"• **Действует до:** `{expiry_date}`\n"
-        f"• **Лимит устройств:** Строго 1 устройство\n\n"
-        f"🔗 **Ваша персональная ссылка (нажмите для копирования):**\n"
+        f"👤 <b>Ваш Личный Кабинет</b>\n\n"
+        f"• <b>Статус подписки:</b> Активен ✅\n"
+        f"• <b>Действует до:</b> <code>{expiry_date}</code>\n"
+        f"• <b>Лимит устройств:</b> Строго 1 устройство\n\n"
+        f"🔗 <b>Ваша персональная ссылка (нажмите для копирования):</b>\n"
         f"<code>{sub_link}</code>\n\n"
-        f"📱 **Инструкция по быстрому подключению:**\n"
+        f"📱 <b>Инструкция по быстрому подключению:</b>\n"
         f"1. Скопируйте ссылку.\n"
-        f"2. Откройте **Hiddify** -> нажмите **«+ Новый профиль»** -> **«Импорт из буфера»** (или отсканируйте этот QR-код камерой приложения)."
+        f"2. Откройте <b>Hiddify</b> -> нажмите <b>«+ Новый профиль»</b> -> <b>«Импорт из буфера»</b> (или отсканируйте этот QR-код камерой приложения)."
     )
 
     await msg_wait.delete()
@@ -544,32 +532,32 @@ async def show_cabinet_inline(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "menu_instructions")
 async def show_instructions_menu(callback: types.CallbackQuery):
-    text = escape_md(
-        "ℹ️ **База знаний FufelshmertsVPN**\n\n"
-        "Мы работаем на самом быстром и надежном протоколе **Trojan**\.\n"
+    text = (
+        "ℹ️ <b>База знаний FufelshmertsVPN</b>\n\n"
+        "Мы работаем на самом быстром и надежном протоколе <b>Trojan</b>.\n"
         "Выберите устройство для получения подробной пошаговой инструкции:"
     )
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_instructions_keyboard(), parse_mode="MarkdownV2")
+        await callback.message.answer(text, reply_markup=get_instructions_keyboard(), parse_mode="HTML")
     else:
-        await callback.message.edit_text(text, reply_markup=get_instructions_keyboard(), parse_mode="MarkdownV2")
+        await callback.message.edit_text(text, reply_markup=get_instructions_keyboard(), parse_mode="HTML")
     await callback.answer()
 
 # --- НАЖАТИЕ ПОДДЕРЖКИ ---
 @dp.callback_query(F.data == "menu_support")
 async def show_support_menu(callback: types.CallbackQuery):
-    text = escape_md(
-        "🛠️ **Тех\. поддержка FufelshmertsVPN**\n\n"
-        "Что\-бы обратить в тех\. поддержку, напиши нам на почту \- **patio\-thigh\-water@duck\.com**\n"
-        "Среднее время ответа **~12 часов**\. Заранее спасибо за ожидание"
+    text = (
+        "🛠️ <b>Тех. поддержка FufelshmertsVPN</b>\n\n"
+        "Чтобы обратиться в тех. поддержку, напиши нам на почту - <b>patio-thigh-water@duck.com</b>\n"
+        "Среднее время ответа <b>~12 часов</b>. Заранее спасибо за ожидание!"
     )
     
     if callback.message.photo:
         await callback.message.delete()
-        await callback.message.answer(text, reply_markup=get_back_to_main_keyboard(), parse_mode="MarkdownV2")
+        await callback.message.answer(text, reply_markup=get_back_to_main_keyboard(), parse_mode="HTML")
     else:
-        await callback.message.edit_text(text, reply_markup=get_back_to_main_keyboard(), parse_mode="MarkdownV2")
+        await callback.message.edit_text(text, reply_markup=get_back_to_main_keyboard(), parse_mode="HTML")
     
     await callback.answer()
 
@@ -582,100 +570,46 @@ async def process_instruction_inline(callback: types.CallbackQuery):
     img_pc = "https://images.unsplash.com/photo-1547082299-de196ea013d6?w=600"
 
     if platform == "ios":
-        text = escape_md(
-            f"🍏 **Инструкция для Телефона \(Hiddify, iOS\)**\n\n"
-            "1\. Скачайте Hiddify \(можно найти в App Store\)\n"
-            "2\. Установите Hiddify следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"🍏 **Инструкция для Телефона \(Happ, iOS\)**\n\n"
-            "1\. Скачайте Happ \(можно найти в App Store\)\n"
-            "2\. Установите Happ следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"🍏 **Инструкция для Телефона \(v2rayTun, iOS\)**\n\n"
-            "1\. Скачайте v2rayTun \(можно найти в App Store\)\n"
-            "2\. Установите v2rayTun следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!"
+        text = (
+            "🍏 <b>Инструкция для iOS (Hiddify)</b>\n\n"
+            "1. Скачайте Hiddify из App Store.\n"
+            "2. Установите приложение.\n"
+            "3. Скопируйте вашу ссылку из личного кабинета.\n"
+            "4. Нажмите на кнопку '+', чтобы добавить ссылку.\n"
+            "5. Запустите VPN.\n\n"
+            "Готово!\n\n"
+            "🍏 <b>Инструкция для iOS (Happ)</b>\n\n"
+            "1. Скачайте Happ из App Store.\n"
+            "2. Скопируйте ссылку, нажмите '+' и запустите VPN."
         )
         photo = img_ios
     elif platform == "android":
-        text = escape_md(
-            f"🤖 **Инструкция для Телефона \(Hiddify, Android\)**\n\n"
-            "1\. Скачайте Hiddify \(можно найти в Play Market\)\n"
-            "2\. Установите Hiddify следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"🤖 **Инструкция для Телефона \(Happ, Android\)**\n\n"
-            "1\. Скачайте Happ \(можно найти в Play Market\)\n"
-            "2\. Установите Happ следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"🤖 **Инструкция для Телефона \(v2rayTun, Android\)**\n\n"
-            "1\. Скачайте v2rayTun \(можно найти в Play Market\)\n"
-            "2\. Установите v2rayTun следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!"
+        text = (
+            "🤖 <b>Инструкция для Android (Hiddify)</b>\n\n"
+            "1. Скачайте Hiddify из Google Play Market.\n"
+            "2. Скопируйте вашу ссылку из личного кабинета.\n"
+            "3. Нажмите на кнопку '+', чтобы импортировать ссылку.\n"
+            "4. Нажмите кнопку подключения.\n\n"
+            "Готово!"
         )
         photo = img_android
     elif platform == "windows":
-        text = escape_md(
-            f"💻 **Инструкция для ПК \(Hiddify, Windows\)**\n\n"
-            "1\. Скачайте Hiddify:\n"
-            "https://github\.com/hiddify/hiddify-app/releases/download/v4\.1\.1/Hiddify\-Windows\-Setup\-x64\.exe\n"
-            "2\. Установите Hiddify следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"💻 **Инструкция для ПК \(Happ, Windows\)**\n\n"
-            "1\. Скачайте Happ:\n"
-            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/setup\-Happ\.x64\.exe\n"
-            "2\. Установите Happ следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!\n"
-            f"💻 **Инструкция для ПК \(v2rayTun, Windows\)**\n\n"
-            "1\. Скачайте v2rayTun:\n"
-            "https://github\.com/mdf45/v2raytun/releases/download/v3\.8\.12/v2RayTun\_Setup\.exe\n"
-            "2\. Установите v2rayTun следуя инструкциям установщика\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!"
+        text = (
+            "💻 <b>Инструкция для Windows (Hiddify)</b>\n\n"
+            "1. Скачайте клик за кликом официальный клиент Hiddify.\n"
+            "2. Установите программу.\n"
+            "3. Скопируйте вашу персональную ссылку из кабинета.\n"
+            "4. В Hiddify нажмите '+' (Новый профиль) -> Из буфера обмена.\n"
+            "5. Нажмите на круглую кнопку подключения."
         )
         photo = img_pc
     else:
-        text = escape_md(
-            f"🐧 **Инструкция для ПК \(Happ, Linux\)**\n\n"
-            "1\. Скачайте Happ\n"
-            "Debian/Ubuntu/Mint:\n"
-            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/Happ\.linux\.x64\.deb\n"
-            "Fedora/AlmaLinux:\n"
-            "https://github\.com/Happ\-proxy/happ\-desktop/releases/download/3\.3\.5/Happ\.linux\.x64\.rpm\n"
-            "2\. Установите Happ под ваш дистрибутив\n"
-            "Debian/Ubuntu/Mint:\n"
-            "`sudo apt install /полный/путь/к/файлу/имя_пакета\.deb`\n"
-            "Fedora/AlmaLinux:\n"
-            "`sudo dnf install /полный/путь/к/файлу/имя_пакета\.rpm`\n"
-            "3\. Скопируйте вашу ссылку \(можно получить в личном кабинете\)\n"
-            "4\. Нажмите на кнопку '\+', что\-бы добавить ссылку\n"
-            "5\. Запустите VPN\n\n"
-            "Готово \!"
+        text = (
+            "🐧 <b>Инструкция для Linux (Happ)</b>\n\n"
+            "1. Установите пакет под ваш дистрибутив.\n"
+            "2. Скопируйте ссылку конфигурации.\n"
+            "3. Импортируйте через добавление нового профиля.\n"
+            "4. Активируйте соединение."
         )
         photo = img_pc
 
@@ -684,7 +618,7 @@ async def process_instruction_inline(callback: types.CallbackQuery):
         photo=photo,
         caption=text,
         reply_markup=get_back_to_main_keyboard(),
-        parse_mode="MarkdownV2"
+        parse_mode="HTML"
     )
     await callback.answer()
 
