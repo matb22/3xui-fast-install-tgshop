@@ -11,7 +11,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.html import quote  # Для безопасной вставки пользовательских данных в HTML
+import html  # Для безопасной вставки пользовательских данных в HTML
 from dotenv import load_dotenv
 from yoomoney import Quickpay, Client
 import qrcode
@@ -247,7 +247,7 @@ async def process_promo_input(message: types.Message, state: FSMContext):
         p1, p3, _ = get_user_prices(message.from_user.id)
         
         text = (
-            f"✅ <b>Промокод <code>{quote(user_promo)}</code> успешно применен!</b>\n\n"
+            f"✅ <b>Промокод <code>{html.escape(user_promo)}</code> успешно применен!</b>\n\n"
             f"Ваши новые цены:\n"
             f"• 1 месяц — <b>{p1}₽</b> (вместо {os.getenv('PRICE_1M', 149)}₽)\n"
             f"• 3 месяца — <b>{p3}₽</b> (вместо {os.getenv('PRICE_3M', 420)}₽)\n\n"
