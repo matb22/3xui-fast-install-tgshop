@@ -110,7 +110,8 @@ def get_main_inline_keyboard():
     builder.button(text="🛍 Купить VPN", callback_data="menu_buy")
     builder.button(text="👤 Мой кабинет", callback_data="menu_cabinet")
     builder.button(text="ℹ️ Инструкции", callback_data="menu_instructions")
-    builder.adjust(2, 1)
+    builder.button(text="🛠️ Тех. Поддержка", callback_data="menu_support")
+    builder.adjust(2, 1, 1)
     return builder.as_markup()
 
 def get_back_to_main_keyboard():
@@ -512,6 +513,23 @@ async def show_instructions_menu(callback: types.CallbackQuery):
         await callback.message.answer(text, reply_markup=get_instructions_keyboard(), parse_mode="Markdown")
     else:
         await callback.message.edit_text(text, reply_markup=get_instructions_keyboard(), parse_mode="Markdown")
+    await callback.answer()
+
+# --- НАЖАТИЕ ПОДДЕРЖКИ ---
+@dp.callback_query(F.data == "menu_support")
+async def show_support_menu(callback: types.CallbackQuery):
+    text = (
+        "🛠️ **Тех. поддержка FufelshmertsVPN**\n\n"
+        "Что-бы обратить в тех. поддержку, напиши нам на почту - **patio-thigh-water@duck.com**\n"
+        "Среднее время ответа **~12 часов**. Заранее спасибо за ожидание"
+    )
+    
+    if callback.message.photo:
+        await callback.message.delete()
+        await callback.message.answer(text, reply_markup=get_back_to_main_keyboard(), parse_mode="Markdown")
+    else:
+        await callback.message.edit_text(text, reply_markup=get_back_to_main_keyboard(), parse_mode="Markdown")
+    
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("inst_"))
