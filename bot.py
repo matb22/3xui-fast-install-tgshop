@@ -241,8 +241,9 @@ async def process_promo_input(message: types.Message, state: FSMContext):
     
     env_promos = os.getenv("VALID_PROMOCODES", "")
     valid_promos = [p.strip().upper() for p in env_promos.split(",") if p.strip()]
+    promo_is_id = database.get_user_id(user_promo)
     
-    if user_promo in valid_promos:
+    if user_promo in valid_promos or promo_is_id == True:
         database.apply_promo_to_user(message.from_user.id, user_promo)
         p1, p3, _ = get_user_prices(message.from_user.id)
         

@@ -69,8 +69,8 @@ def get_user_id(input_id):
     conn.close()
 
     # проверяем нашли ли вообще что-то
-    if row is not None: return 0 # нашли = вернуть да
-    else: return 1 # не нашли = вернуть нет
+    if row is not None: return True # нашли = вернуть да
+    else: return False # не нашли = вернуть нет
 
 def apply_promo_to_user(tg_id, promo_code):
     """Фиксирует, что пользователь использовал промокод"""
