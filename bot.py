@@ -237,7 +237,7 @@ async def ask_for_promocode(callback: types.CallbackQuery, state: FSMContext):
 @dp.message(PromoStates.waiting_for_promo, F.text)
 async def process_promo_input(message: types.Message, state: FSMContext):
     user_promo = message.text.strip().upper()
-    await state.clear()
+    await state.clear() 
     
     env_promos = os.getenv("VALID_PROMOCODES", "")
     valid_promos = [p.strip().upper() for p in env_promos.split(",") if p.strip()]
